@@ -98,9 +98,27 @@ func (conn *Conn) makePersistent(peerID UUID) {
 	setTCPKeepAlive(conn.nc)
 }
 
+// peekedConn is a net.Conn whose first bytes were already read (to tell TLS from plain); Read returns them first.
+type peekedConn struct {
+	net.Conn
+	head []byte
+}
+
+func (p *peekedConn) Read(b []byte) (int, error) {
+	if len(p.head) > 0 {
+		n := copy(b, p.head)
+		p.head = p.head[n:]
+		return n, nil
+	}
+	return p.Conn.Read(b)
+}
+
 func setTCPKeepAlive(nc net.Conn) {
 	if tc, ok := nc.(*tls.Conn); ok {
 		nc = tc.NetConn()
+	}
+	if pc, ok := nc.(*peekedConn); ok {
+		nc = pc.Conn
 	}
 	if tc, ok := nc.(*net.TCPConn); ok {
 		_ = tc.SetKeepAliveConfig(net.KeepAliveConfig{Enable: true, Idle: 15 * time.Second, Interval: 5 * time.Second, Count: 4})

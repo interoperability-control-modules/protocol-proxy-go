@@ -132,6 +132,9 @@ type Options struct {
 	Cipher string
 	// TLS material makes every accepted connection TLS and lets this end dial TLS peers.
 	TLS *TLSMaterial
+	// TLSOptional, with TLS material, makes the listener accept plain connections too, telling them apart by the
+	// first byte (a TLS record begins with 0x16, a frame with 0x00): a manager's listener (PROTOCOL.md §5, TLS).
+	TLSOptional bool
 	// Features is what this end advertises.
 	Features []string
 	Logger   *logs.Logger
@@ -469,7 +472,7 @@ func (c *Connector) Listen(address string, port int) error {
 	host, portText, _ := net.SplitHostPort(l.Addr().String())
 	c.listenHost = host
 	c.listenPort, _ = strconv.Atoi(portText)
-	if c.serverTLS != nil {
+	if c.serverTLS != nil && !c.opts.TLSOptional {
 		l = tls.NewListener(l, c.serverTLS)
 	}
 	c.listener = l
@@ -498,12 +501,36 @@ func (c *Connector) Serve() {
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+			if c.serverTLS != nil && c.opts.TLSOptional {
+				go c.serveSniffed(nc)
+				continue
+			}
 			conn := newConn(c, nc, true)
 			_ = nc.SetDeadline(time.Now().Add(c.opts.IOTimeout))
 			c.track(conn)
 			go c.serve(conn)
 		}
 	}()
+}
+
+// serveSniffed serves an accepted connection that may be TLS or plain: the first byte tells (a TLS ClientHello
+// record starts with 0x16, a frame's version word with 0x00), as the Python manager's listener does.
+func (c *Connector) serveSniffed(nc net.Conn) {
+	_ = nc.SetReadDeadline(time.Now().Add(c.opts.IOTimeout))
+	head := make([]byte, 1)
+	if _, err := io.ReadFull(nc, head); err != nil {
+		c.log.Debugf(logName, "%s: connection from %s ended before any data: %v", c.opts.Name, nc.RemoteAddr(), err)
+		_ = nc.Close()
+		return
+	}
+	var wrapped net.Conn = &peekedConn{Conn: nc, head: head}
+	if head[0] == 0x16 {
+		wrapped = tls.Server(wrapped, c.serverTLS)
+	}
+	conn := newConn(c, wrapped, true)
+	_ = wrapped.SetDeadline(time.Now().Add(c.opts.IOTimeout))
+	c.track(conn)
+	c.serve(conn)
 }
 
 // Stop closes the listener and every connection; pending requests fail.
