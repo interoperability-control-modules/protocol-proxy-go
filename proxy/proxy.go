@@ -201,6 +201,14 @@ func RegistrationAccepted(reply []byte) (accepted bool, features []string) {
 	return false, nil
 }
 
+// managerWhere names the manager for log lines: its address, or the connection it opened to us.
+func (p *Proxy) managerWhere() string {
+	if p.Manager.Address != "" {
+		return p.Manager.Address
+	}
+	return "the manager-initiated connection"
+}
+
 func (p *Proxy) waitForManager() bool {
 	waited := time.Duration(0)
 	for !p.stopping.Load() && !p.Manager.Linked() {
@@ -249,7 +257,7 @@ func (p *Proxy) register() bool {
 		}()
 		if ok {
 			p.registered.Store(true)
-			p.Log.Infof(logName, "%s: Registered with manager @ %s.", p.Opts.ProxyName, p.Manager.Address)
+			p.Log.Infof(logName, "%s: Registered with manager @ %s.", p.Opts.ProxyName, p.managerWhere())
 			return true
 		}
 		if attempt < RegistrationAttempts {
@@ -261,7 +269,7 @@ func (p *Proxy) register() bool {
 		}
 	}
 	p.Log.Errorf(logName, "%s: Unable to register with Proxy Manager @ %s after %d attempts.", p.Opts.ProxyName,
-		p.Manager.Address, RegistrationAttempts)
+		p.managerWhere(), RegistrationAttempts)
 	return false
 }
 
