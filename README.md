@@ -25,7 +25,7 @@ handshake, the parent-PID watch and a clean exit on SIGTERM. Dependencies: the s
 ## Build and test
 
 ```sh
-export PATH=/home/dmr/.local/go/bin:$PATH     # Go 1.23
+# needs a Go 1.23 toolchain on PATH
 go build -o bin/echo-proxy ./cmd/echo-proxy
 go build -o bin/conformance ./cmd/conformance
 go test ./...                                 # the manager tests build and launch echo-proxy themselves
@@ -58,9 +58,9 @@ in `tests/manifests/` (their `[environment]` sets `PYTHONPATH = "{manifest_dir}/
 
 ```sh
 ./bin/conformance ../protocol-proxy/tests/manifests/GeventDummy.toml --echo ECHO --tls --manager-dials \
-    --python ~/Scratch/drivers_proxies/.venv/bin/python
+    --python /path/to/venv/bin/python
 ./bin/conformance ../protocol-proxy/tests/manifests/AsyncioDummy.toml --echo ECHO --tls --manager-dials \
-    --python ~/Scratch/drivers_proxies/.venv/bin/python
+    --python /path/to/venv/bin/python
 ```
 
 The 26 checks are those of PROTOCOL.md §12 plus "LOG batch over the socket" (when `log` is advertised, a record must
@@ -72,8 +72,8 @@ The Python harness launches the proxy through the Python manager and checks the 
 Python repository, with its virtual environment:
 
 ```sh
-cd /home/dmr/Projects/volttron/modular/proxies/protocol-proxy
-python -m protocol_proxy.conformance /home/dmr/Projects/volttron/modular/proxies/protocol-proxy-go/proxy.toml \
+cd /path/to/protocol-proxy
+python -m protocol_proxy.conformance /path/to/protocol-proxy-go/proxy.toml \
     --echo ECHO --tls --manager-dials -v
 ```
 
